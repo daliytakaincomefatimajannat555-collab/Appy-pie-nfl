@@ -1,0 +1,72 @@
+const fs = require('fs');
+const path = require('path');
+
+/**
+ * Generate GitHub-style anchor for a heading
+ */
+const generateAnchor = (heading, existingAnchors) => {
+  let anchor = heading.toLowerCase()
+                      .replace(/[\\`*_{}\[\]()#+\-.!]/g, "")
+                      .trim()
+                      .replace(/\s+/g, "-");
+
+  if (existingAnchors[anchor] !== undefined) {
+    existingAnchors[anchor] += 1;
+    anchor += `-${existingAnchors[anchor]}`;
+  } else {
+    existingAnchors[anchor] = 0;
+  }
+
+  return anchor;
+};
+
+/**
+ * Generate TOC from Markdown text
+ */
+const generateTOC = (markdownText) => {
+  const existingAnchors = {};
+  const lines = markdownText.split("\n");
+  const tocLines = [];
+
+  lines.forEach(line => {
+    const match = line.match(/^(#{1,6})\s+(.*)/);
+    if (match) {
+      const level = match[1].length;
+      const headingText = match[2].trim();
+      const anchor = generateAnchor(headingText, existingAnchors);
+      const tocLine = `${"  ".repeat(level-1)}- [${headingText}](#${anchor})`;
+      tocLines.push(tocLine);
+    }
+  });
+
+  return tocLines.join("\n");
+};
+
+/**
+ * Update TOC in Markdown file in-place with markers
+ */
+const updateMarkdownTOC = (filePath) => {
+  let content = fs.readFileSync(filePath, "utf8");
+
+  // TOC markers
+  const tocStart = "<!-- TOC START -->";
+  const tocEnd = "<!-- TOC END -->";
+
+  // Remove existing TOC if present
+  const tocRegex = new RegExp(`${tocStart}[\\s\\S]*?${tocEnd}`, "m");
+  content = content.replace(tocRegex, "").trim();
+
+  // Generate new TOC
+  const tocContent = `${tocStart}\n# Table of Contents\n\n${generateTOC(content)}\n${tocEnd}\n\n`;
+
+  // Prepend TOC to file
+  const updatedContent = tocContent + content;
+
+  // Write back
+  fs.writeFileSync(filePath, updatedContent, "utf8");
+  console.log(`✅ Table of Contents updated in ${path.basename(filePath)}`);
+};
+
+// Example usage:
+const markdownFilePath = "README.md"; // Change this if needed
+updateMarkdownTOC(markdownFilePath);
